@@ -8,6 +8,7 @@ import (
 
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
+	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/td/tg"
 )
 
@@ -54,8 +55,13 @@ func runPlay(link string) {
 		Path: sessionPath(),
 	}
 
+	waiter := floodwait.NewSimpleWaiter()
+
 	client := telegram.NewClient(apiID, apiHash, telegram.Options{
 		SessionStorage: sessionStorage,
+		Middlewares: []telegram.Middleware{
+			waiter,
+		},
 	})
 
 	ctx := context.Background()
