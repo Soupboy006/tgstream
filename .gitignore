@@ -3,3 +3,4 @@ tgserver
 *.json
 chunk_test.bin
 *.bin
+dist/
