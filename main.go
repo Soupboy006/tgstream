@@ -115,7 +115,7 @@ func runPlay(link string) {
 
 		fmt.Printf("Found video: %.1f MB, mime=%s\n", float64(doc.Size)/1024/1024, doc.MimeType)
 
-		playURL := startStreamServer(ctx, api, channelID, accessHash, doc)
+		playURL := startStreamServer(ctx, api, channelID, accessHash, parsed.MsgID, doc)
 		fmt.Println("Streaming ready:", playURL)
 		fmt.Println("Press Ctrl+C to stop.")
 

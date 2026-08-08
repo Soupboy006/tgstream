@@ -9,20 +9,19 @@ import (
 	"strings"
 
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 )
 
-func startStreamServer(ctx context.Context, api *tg.Client, channelID, accessHash int64, doc *tg.Document) string {
-	loc := &tg.InputDocumentFileLocation{
-		ID:            doc.ID,
-		AccessHash:    doc.AccessHash,
-		FileReference: doc.FileReference,
-	}
-
+func startStreamServer(ctx context.Context, api *tg.Client, channelID, accessHash int64, msgID int, doc *tg.Document) string {
+	fileSize := doc.Size
 	mime := doc.MimeType
 	if mime == "" {
 		mime = "video/x-matroska"
 	}
-	fileSize := doc.Size
+
+	docID := doc.ID
+	docAccessHash := doc.AccessHash
+	fileRef := doc.FileReference
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/play", func(w http.ResponseWriter, r *http.Request) {
@@ -51,12 +50,29 @@ func startStreamServer(ctx context.Context, api *tg.Client, channelID, accessHas
 		offset := start - (start % chunkSize)
 
 		for offset <= end {
+			loc := &tg.InputDocumentFileLocation{
+				ID:            docID,
+				AccessHash:    docAccessHash,
+				FileReference: fileRef,
+			}
+
 			result, err := api.UploadGetFile(r.Context(), &tg.UploadGetFileRequest{
 				Location: loc,
 				Offset:   offset,
 				Limit:    chunkSize,
 			})
+
 			if err != nil {
+				if tgerr.Is(err, "FILE_REFERENCE_EXPIRED") || tgerr.Is(err, "FILE_REFERENCE_INVALID") {
+					log.Println("file reference expired, refreshing...")
+					newDoc, rerr := fetchDocumentFromChannel(r.Context(), api, channelID, accessHash, msgID)
+					if rerr != nil || newDoc == nil {
+						log.Println("failed to refresh file reference:", rerr)
+						return
+					}
+					fileRef = newDoc.FileReference
+					continue // retry this offset with the fresh reference
+				}
 				log.Println("download error:", err)
 				return
 			}
