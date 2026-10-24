@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -22,11 +23,21 @@ type ParsedLink struct {
 
 func parseLink(link string) (*ParsedLink, error) {
 	link = strings.TrimSpace(link)
+
+	if strings.HasPrefix(link, "tg://") {
+		return parseTGLink(link)
+	}
+
 	link = strings.TrimPrefix(link, "https://")
 	link = strings.TrimPrefix(link, "http://")
-	link = strings.TrimPrefix(link, "t.me/")
-	link = strings.TrimPrefix(link, "www.t.me/")
 
+	// Share links often carry ?single, ?thread=N or a #fragment.
+	if i := strings.IndexAny(link, "?#"); i >= 0 {
+		link = link[:i]
+	}
+
+	link = strings.TrimPrefix(link, "www.")
+	link = strings.TrimPrefix(link, "t.me/")
 	parts := strings.Split(strings.Trim(link, "/"), "/")
 
 	// Private channel format: c/{channelID}/{msgID}
@@ -45,6 +56,9 @@ func parseLink(link string) (*ParsedLink, error) {
 	// Public channel/group/DM format: {username}/{msgID}
 	if len(parts) == 2 {
 		username := strings.TrimPrefix(parts[0], "@")
+		if username == "" {
+			return nil, fmt.Errorf("missing username in %s", link)
+		}
 		msgID, err := strconv.Atoi(parts[1])
 		if err != nil {
 			return nil, fmt.Errorf("invalid message id: %s", parts[1])
@@ -53,4 +67,25 @@ func parseLink(link string) (*ParsedLink, error) {
 	}
 
 	return nil, fmt.Errorf("unrecognized link format: %s (expected t.me/c/ID/MSG or t.me/username/MSG)", link)
+}
+
+func parseTGLink(link string) (*ParsedLink, error) {
+	u, err := url.Parse(link)
+	if err != nil || u.Host != "resolve" {
+		return nil, fmt.Errorf("unsupported tg:// link: %s (expected tg://resolve?domain=USERNAME&post=MSG)", link)
+	}
+
+	q := u.Query()
+	username := strings.TrimPrefix(q.Get("domain"), "@")
+	post := q.Get("post")
+	if username == "" || post == "" {
+		return nil, fmt.Errorf("tg://resolve needs domain and post: %s", link)
+	}
+
+	msgID, err := strconv.Atoi(post)
+	if err != nil {
+		return nil, fmt.Errorf("invalid message id: %s", post)
+	}
+
+	return &ParsedLink{Kind: KindPublicChannel, Username: username, MsgID: msgID}, nil
 }
