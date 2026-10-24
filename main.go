@@ -6,15 +6,10 @@ import (
 	"log"
 	"os"
 
+	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
-	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/td/tg"
-)
-
-var (
-	apiID   = getEnvInt("TGSTREAM_API_ID", 37572969)
-	apiHash = getEnvStr("TGSTREAM_API_HASH", "REDACTED")
 )
 
 func main() {
@@ -43,12 +38,25 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  tgstream play <telegram-link>   Stream a video from a message link")
+	fmt.Println()
+	fmt.Println("Required environment:")
+	fmt.Println("  TGSTREAM_API_ID     Telegram API ID from https://my.telegram.org")
+	fmt.Println("  TGSTREAM_API_HASH   Telegram API hash from https://my.telegram.org")
 }
 
 func runPlay(link string) {
 	parsed, err := parseLink(link)
 	if err != nil {
 		log.Fatal("bad link: ", err)
+	}
+
+	apiID, err := requiredEnvInt("TGSTREAM_API_ID")
+	if err != nil {
+		log.Fatal(err)
+	}
+	apiHash, err := requiredEnvStr("TGSTREAM_API_HASH")
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	sessionStorage := &session.FileStorage{
@@ -73,49 +81,40 @@ func runPlay(link string) {
 
 		api := client.API()
 
-		var doc *tg.Document
-		var channelID, accessHash int64
-
+		var peer tg.InputPeerClass
 		switch parsed.Kind {
 		case KindPrivateChannel:
 			fmt.Println("Resolving private channel...")
-			channelID = parsed.ChannelID
-			accessHash, err = findChannelAccessHash(ctx, api, channelID)
+			accessHash, err := findChannelAccessHash(ctx, api, parsed.ChannelID)
 			if err != nil {
 				return err
 			}
-			fmt.Println("Fetching message...")
-			doc, err = fetchDocumentFromChannel(ctx, api, channelID, accessHash, parsed.MsgID)
-			if err != nil {
-				return err
-			}
+			peer = &tg.InputPeerChannel{ChannelID: parsed.ChannelID, AccessHash: accessHash}
 
 		case KindPublicChannel:
 			fmt.Printf("Resolving @%s...\n", parsed.Username)
-			peer, err2 := resolveUsername(ctx, api, parsed.Username)
-			if err2 != nil {
-				return err2
-			}
-
-			fmt.Println("Fetching message...")
-			switch p := peer.(type) {
-			case *tg.InputPeerChannel:
-				channelID = p.ChannelID
-				accessHash = p.AccessHash
-				doc, err = fetchDocumentFromChannel(ctx, api, channelID, accessHash, parsed.MsgID)
-			case *tg.InputPeerUser:
-				doc, err = fetchDocumentFromUser(ctx, api, p.UserID, p.AccessHash, parsed.MsgID)
-			default:
-				return fmt.Errorf("unsupported peer type")
-			}
+			var err error
+			peer, err = resolveUsername(ctx, api, parsed.Username)
 			if err != nil {
 				return err
 			}
 		}
 
+		fmt.Println("Fetching message...")
+		doc, err := fetchDocument(ctx, api, peer, parsed.MsgID)
+		if err != nil {
+			return err
+		}
+
 		fmt.Printf("Found video: %.1f MB, mime=%s\n", float64(doc.Size)/1024/1024, doc.MimeType)
 
-		playURL := startStreamServer(ctx, api, channelID, accessHash, parsed.MsgID, doc)
+		refresh := func(ctx context.Context) (*tg.Document, error) {
+			return fetchDocument(ctx, api, peer, parsed.MsgID)
+		}
+		playURL, err := startStreamServer(api, refresh, doc)
+		if err != nil {
+			return err
+		}
 		fmt.Println("Streaming ready:", playURL)
 		fmt.Println("Press Ctrl+C to stop.")
 

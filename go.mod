@@ -2,7 +2,11 @@ module tgstream
 
 go 1.26.5
 
-require github.com/gotd/td v0.161.0
+require (
+	github.com/gotd/contrib v0.25.0
+	github.com/gotd/td v0.161.0
+	golang.org/x/term v0.47.0
+)
 
 require (
 	github.com/andybalholm/brotli v1.2.1 // indirect
@@ -17,7 +21,6 @@ require (
 	github.com/go-faster/xor v1.0.0 // indirect
 	github.com/go-faster/yaml v0.4.6 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gotd/contrib v0.25.0 // indirect
 	github.com/gotd/ige v0.3.0 // indirect
 	github.com/gotd/log v0.1.0 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
@@ -40,7 +43,7 @@ require (
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

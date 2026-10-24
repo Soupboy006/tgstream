@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
 	"github.com/gotd/td/tg"
+	"golang.org/x/term"
 )
 
 func ensureLoggedIn(ctx context.Context, client *telegram.Client) error {
@@ -36,9 +39,12 @@ func (termAuth) Phone(_ context.Context) (string, error) {
 
 func (termAuth) Password(_ context.Context) (string, error) {
 	fmt.Print("Enter 2FA password (leave blank if none): ")
-	var pass string
-	fmt.Scanln(&pass)
-	return pass, nil
+	pass, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(pass)), nil
 }
 
 func (termAuth) Code(_ context.Context, _ *tg.AuthSentCode) (string, error) {

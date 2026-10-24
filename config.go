@@ -1,22 +1,27 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 )
 
-func getEnvStr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
+func requiredEnvStr(key string) (string, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return "", fmt.Errorf("%s is required", key)
 	}
-	return fallback
+	return v, nil
 }
 
-func getEnvInt(key string, fallback int) int {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
+func requiredEnvInt(key string) (int, error) {
+	v, err := requiredEnvStr(key)
+	if err != nil {
+		return 0, err
 	}
-	return fallback
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a number: %w", key, err)
+	}
+	return n, nil
 }
